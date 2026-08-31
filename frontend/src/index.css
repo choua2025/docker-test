@@ -1,0 +1,76 @@
+/* Tailwind CSS v4: one import replaces the old three @tailwind directives,
+   and the theme is configured here in CSS instead of tailwind.config.js. */
+@import "tailwindcss";
+
+@theme {
+  /* Two Lao faces, not one. Headings are set in the serif so a page has a
+     visible hierarchy before you read a word; everything else is the sans,
+     which stays legible at small sizes on a phone. */
+  --font-sans: "Noto Sans Lao", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-serif: "Noto Serif Lao", "Noto Sans Lao", Georgia, serif;
+
+  /* Brand: a deep pine-teal. Darker than the old mid teal so white text sits
+     on it comfortably and it reads as ink rather than as a UI accent. */
+  --color-brand-50: #eff7f5;
+  --color-brand-100: #d6ebe7;
+  --color-brand-200: #aed8d1;
+  --color-brand-300: #7bbdb3;
+  --color-brand-400: #4a9d92;
+  --color-brand-500: #2c8074;
+  --color-brand-600: #1a6a5f;
+  --color-brand-700: #12554d;
+  --color-brand-800: #0e433d;
+  --color-brand-900: #0a3330;
+
+  /* Saffron. One warm accent against all that green, used sparingly:
+     progress, the active marker, the "new" badge. */
+  --color-saffron-50: #fdf6ec;
+  --color-saffron-100: #f8e6cb;
+  --color-saffron-200: #f0cb96;
+  --color-saffron-400: #d99441;
+  --color-saffron-500: #c2701a;
+  --color-saffron-600: #9d5714;
+
+  /* Paper: a neutral with a faint green bias so it sits with the brand
+     instead of looking like an unpainted default grey. */
+  --color-paper-50: #f7f8f7;
+  --color-paper-100: #eef1ef;
+  --color-paper-200: #dfe4e2;
+  --color-paper-300: #c7cfcc;
+  --color-paper-500: #6b7873;
+  --color-paper-700: #3b4844;
+  --color-paper-900: #16211e;
+}
+
+html {
+  /* Lao script has tall vowel/tone marks above and below the base letters,
+     so it needs more line height than Latin text to stay readable. */
+  line-height: 1.85;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  @apply bg-paper-50 text-paper-900 antialiased;
+  font-family: var(--font-sans);
+}
+
+/* Headings are serif everywhere, set once here rather than repeated as a
+   class on every page. */
+h1, h2, h3 {
+  font-family: var(--font-serif);
+  text-wrap: balance;
+  line-height: 1.4;
+}
+
+/* Give keyboard users a clearly visible focus ring everywhere. */
+:focus-visible {
+  @apply outline-2 outline-offset-2 outline-brand-600;
+}
+
+/* The reading column of a lesson: wide leading and a comfortable measure,
+   because a paragraph of Lao at default leading is genuinely hard to read. */
+.lesson-prose {
+  font-size: 1.0625rem;
+  line-height: 2.15;
+  letter-spacing: 0.01em;
+}

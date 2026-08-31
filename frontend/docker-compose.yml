@@ -1,0 +1,33 @@
+# LaoLearn - the web UI.
+#
+# nginx serves the built single-page app and proxies /api to the backend
+# container over the shared `laolearn` network.
+#
+# Run this stack on its own:
+#   docker network create laolearn          # once, shared with the backend
+#   docker compose --env-file ../.env up -d
+#
+# Or run everything from the repo root, which includes this file:
+#   docker compose up -d
+#
+# There is deliberately no `depends_on` here: the two stacks can be started in
+# any order, because nginx resolves the backend's name lazily (see nginx.conf).
+
+name: laolearn-frontend
+
+services:
+  frontend:
+    build: .
+    image: laolearn-frontend
+    container_name: laolearn-frontend
+    ports:
+      - "${FRONTEND_HOST_PORT:-8081}:80"
+    networks: [laolearn]
+    restart: unless-stopped
+
+networks:
+  # Shared with the backend stack. Create it once with:
+  #   docker network create laolearn
+  laolearn:
+    name: laolearn
+    external: true
