@@ -1,0 +1,84 @@
+# LaoLearn - database + API.
+#
+# The backend owns the database: it is the only thing that migrates it, so the
+# two live and die together here.
+#
+# Run this stack on its own:
+#   docker network create laolearn          # once, shared with the frontend
+#   docker compose --env-file ../.env up -d
+#
+# Or run everything from the repo root, which includes this file:
+#   docker compose up -d
+
+name: laolearn-backend
+
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: laolearn-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-laolearn}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-laolearn}
+      POSTGRES_DB: ${POSTGRES_DB:-laolearn}
+      # Lao text is stored as UTF-8; this makes the initial database use it.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      # Exposed so you can inspect the database with psql or pgAdmin.
+      # Remove this in production.
+      - "${POSTGRES_HOST_PORT:-5440}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-laolearn} -d ${POSTGRES_DB:-laolearn}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [laolearn]
+    restart: unless-stopped
+
+  backend:
+    build: .
+    image: laolearn-backend
+    container_name: laolearn-backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 9000
+      # nginx sits in front of the API, so trust exactly one proxy hop.
+      TRUST_PROXY: 1
+      # Always built from the compose values, never from backend/.env - that
+      # file points at a database on the host, which a container cannot reach.
+      DATABASE_URL: postgres://${POSTGRES_USER:-laolearn}:${POSTGRES_PASSWORD:-laolearn}@db:5432/${POSTGRES_DB:-laolearn}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env - at least 32 characters}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-2h}
+      TEACHER_REGISTRATION_CODE: ${TEACHER_REGISTRATION_CODE:-}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8081}
+      ADMIN_NAME: ${ADMIN_NAME:-Administrator}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@laolearn.la}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      # Lesson attachments. Left empty, the app runs with upload switched off.
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
+      CLOUDINARY_FOLDER: ${CLOUDINARY_FOLDER:-laolearn/lessons}
+      UPLOAD_MAX_MB: ${UPLOAD_MAX_MB:-100}
+    ports:
+      # Handy for testing the API directly; nginx reaches it over the
+      # internal network, so this can be removed in production.
+      - "${BACKEND_HOST_PORT:-9010}:9000"
+    networks: [laolearn]
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+    name: laolearn-pgdata
+
+networks:
+  # Shared with the frontend stack so nginx can reach `backend` by name even
+  # when the two are started as separate compose projects.
+  # Create it once with: docker network create laolearn
+  laolearn:
+    name: laolearn
+    external: true
