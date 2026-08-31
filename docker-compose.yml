@@ -1,11 +1,25 @@
-services:
-  app:
-    build: .
-    image: docker-project
-    container_name: docker-project
-    ports:
-      - "6000:6000"
-    environment:
-      NODE_ENV: production
-      PORT: 6000
-    restart: unless-stopped
+# LaoLearn - the whole system.
+#
+# The services themselves live next to the code they run:
+#   backend/docker-compose.yml   database + API
+#   frontend/docker-compose.yml  nginx + the built web app
+#
+# This file only pulls those two together, so `docker compose up` at the repo
+# root still starts everything, while each part stays runnable on its own.
+#
+#   docker network create laolearn        # once
+#   cp .env.example .env                  # then fill in JWT_SECRET etc.
+#   docker compose up -d --build
+#   docker compose run --rm backend npm run migrate
+#   docker compose run --rm backend npm run seed
+#
+# Both included files read this directory's .env, so there is still exactly
+# one place to configure the system.
+
+name: laolearn
+
+include:
+  - path: backend/docker-compose.yml
+    env_file: .env
+  - path: frontend/docker-compose.yml
+    env_file: .env
