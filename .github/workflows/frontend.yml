@@ -1,0 +1,101 @@
+# Frontend CI - build the site on GitHub's machines.
+#
+# No Docker and no database: the frontend is a static bundle, so proving it
+# compiles is the whole job. The image build is a separate step at the bottom.
+name: frontend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend.yml"
+  pull_request:
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend.yml"
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: frontend
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      # A broken import or a bad Tailwind class fails the build above. These
+      # checks catch the quieter failures: an empty bundle, or a missing font
+      # link that would silently drop back to a face with no Lao glyphs.
+      - name: Check the bundle
+        run: |
+          set -e
+          test -f dist/index.html || { echo "dist/index.html missing"; exit 1; }
+
+          js=$(find dist/assets -name '*.js' | head -1)
+          css=$(find dist/assets -name '*.css' | head -1)
+          test -n "$js"  || { echo "no JS bundle produced"; exit 1; }
+          test -n "$css" || { echo "no CSS bundle produced"; exit 1; }
+
+          grep -q 'Noto+Sans+Lao'  dist/index.html || { echo "Noto Sans Lao link is gone"; exit 1; }
+          grep -q 'Noto+Serif+Lao' dist/index.html || { echo "Noto Serif Lao link is gone"; exit 1; }
+          grep -q 'lang="lo"'      dist/index.html || { echo "the page is no longer marked as Lao"; exit 1; }
+
+          echo "index.html $(wc -c < dist/index.html) bytes"
+          echo "js         $(wc -c < "$js") bytes"
+          echo "css        $(wc -c < "$css") bytes"
+
+      # A school connection is slow. If the bundle doubles overnight, someone
+      # should have to justify it rather than find out from the students.
+      - name: Bundle size budget
+        run: |
+          set -e
+          budget_kb=400
+          js=$(find dist/assets -name '*.js' | head -1)
+          size_kb=$(( $(wc -c < "$js") / 1024 ))
+          echo "JS bundle: ${size_kb} KB (budget ${budget_kb} KB)"
+          if [ "$size_kb" -gt "$budget_kb" ]; then
+            echo "::error::JS bundle is ${size_kb} KB, over the ${budget_kb} KB budget"
+            exit 1
+          fi
+
+      # Keeps the built site downloadable from the run, which is handy for
+      # checking a PR's output without deploying it anywhere.
+      - name: Upload the built site
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          retention-days: 7
+
+  image:
+    name: docker image builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

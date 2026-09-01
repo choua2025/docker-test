@@ -1,0 +1,97 @@
+# Backend CI - runs on GitHub's machines, not yours.
+#
+# No Docker anywhere in this job. Node runs natively on the runner and
+# PostgreSQL comes from a `services:` container that GitHub starts and stops
+# for us, so nothing needs to be running locally for this to pass.
+name: backend
+
+on:
+  push:
+    branches: [main]
+    # Only when backend code actually changed. A frontend-only commit skips
+    # this whole workflow instead of spending three minutes proving nothing.
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend.yml"
+  pull_request:
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend.yml"
+  # Lets you re-run it by hand from the Actions tab.
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: backend
+
+jobs:
+  test:
+    name: migrate and test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: laolearn
+          POSTGRES_PASSWORD: laolearn
+          POSTGRES_DB: laolearn_test
+        ports:
+          - 5432:5432
+        # The job must not start querying before Postgres accepts connections.
+        options: >-
+          --health-cmd "pg_isready -U laolearn -d laolearn_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://laolearn:laolearn@localhost:5432/laolearn_test
+      # Test-only values. Real secrets never appear in a workflow file.
+      JWT_SECRET: ci-only-secret-that-is-at-least-32-characters
+      NODE_ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      # `ci`, not `install`: it installs exactly what the lockfile pins and
+      # fails if package.json and the lockfile disagree.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply migrations
+        run: npm run migrate
+
+      # Running them again must be a no-op. This catches a migration that is
+      # not idempotent before it corrupts a real database.
+      - name: Migrations are repeatable
+        run: npm run migrate
+
+      - name: Run tests
+        run: npm test
+
+  # A separate job so a failing image build is reported on its own, and so it
+  # runs in parallel with the tests rather than after them.
+  image:
+    name: docker image builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Build only - nothing is pushed and nothing runs. This just proves the
+      # Dockerfile is still correct, which `npm test` cannot tell you.
+      - name: Build backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

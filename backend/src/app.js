@@ -9,9 +9,17 @@ import helmet from "helmet";
 import cors from "cors";
 import morgan from "morgan";
 
+import { readFileSync } from "node:fs";
+
 import routes from "./routes/index.js";
 import { notFound, errorHandler } from "./middleware/errorHandler.js";
 import { env } from "./config/env.js";
+
+// Read once at startup. `process.env.npm_package_version` only exists when the
+// process was launched by an npm script, so it is empty under Docker.
+const { version: PACKAGE_VERSION } = JSON.parse(
+  readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+);
 
 export function createApp() {
   const app = express();
@@ -39,10 +47,15 @@ export function createApp() {
 
   app.use(morgan(env.isProduction ? "combined" : "dev"));
 
-  app.use("/", (req, res) => {
+  // A welcome note at the API root.
+  //
+  // This MUST be app.get("/") and not app.use("/"): a `use` mount path of "/"
+  // matches every request, and a handler that never calls next() would then
+  // swallow the whole API. `get` matches the exact path and method only.
+  app.get("/", (req, res) => {
     res.json({
       message: "ຍິນດີຕ້ອນຮັບເຂົ້າໃນ LaoLearn API ສໍາລັບແຂວງໄຊ",
-      version: env.npm_package_version,
+      version: PACKAGE_VERSION,
       env: env.NODE_ENV,
     });
   });

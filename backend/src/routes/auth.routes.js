@@ -13,27 +13,34 @@ import rateLimit from "express-rate-limit";
 import * as authController from "../controllers/auth.controller.js";
 import { validateBody } from "../middleware/validate.js";
 import { requireAuth } from "../middleware/auth.js";
+import { env } from "../config/env.js";
 
 const router = Router();
 
-// Slows down password guessing from a single IP without blocking a whole
-// classroom that shares one school connection from working normally.
+/**
+ * Slows down password guessing without locking out a class.
+ *
+ * Every student in a school usually shares one NAT gateway, so they all look
+ * like a single IP here. The limits therefore come from the environment
+ * (see RATE_LIMIT_* in .env.example) and default high enough for a full
+ * classroom signing in at the start of a lesson.
+ */
 const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  limit: 20,
+  windowMs: env.RATE_LIMIT_LOGIN_WINDOW_MIN * 60 * 1000,
+  limit: env.RATE_LIMIT_LOGIN_MAX,
   standardHeaders: "draft-7",
   legacyHeaders: false,
   message: {
     error: {
       code: "too_many_requests",
-      message: "ພະຍາຍາມຫຼາຍເກີນໄປ ກະລຸນາລໍຖ້າ 15 ນາທີ ແລ້ວລອງໃໝ່",
+      message: `ພະຍາຍາມຫຼາຍເກີນໄປ ກະລຸນາລໍຖ້າ ${env.RATE_LIMIT_LOGIN_WINDOW_MIN} ນາທີ ແລ້ວລອງໃໝ່`,
     },
   },
 });
 
 const registerLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  limit: 30,
+  windowMs: env.RATE_LIMIT_REGISTER_WINDOW_MIN * 60 * 1000,
+  limit: env.RATE_LIMIT_REGISTER_MAX,
   standardHeaders: "draft-7",
   legacyHeaders: false,
   message: {

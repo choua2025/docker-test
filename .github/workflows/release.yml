@@ -1,0 +1,90 @@
+# CD - publish the two images to GitHub Container Registry.
+#
+# This is the only workflow that pushes anything. It runs on main and on a
+# version tag, never on a pull request, so an outside contributor's branch can
+# never publish an image.
+#
+# The images are built by GitHub, so deploying does not require Docker running
+# on your machine at all: a server pulls
+#   ghcr.io/<owner>/laolearn-backend:latest
+#   ghcr.io/<owner>/laolearn-frontend:latest
+name: release
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  publish:
+    name: build and push ${{ matrix.name }}
+    runs-on: ubuntu-latest
+
+    # GITHUB_TOKEN is read-only by default; publishing needs write on packages.
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      # One image failing should not cancel the other half-way through.
+      fail-fast: false
+      matrix:
+        include:
+          - name: backend
+            context: ./backend
+          - name: frontend
+            context: ./frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to ${{ env.REGISTRY }}
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Package names must be lower-case; a GitHub username with capitals
+      # would otherwise fail the push with a confusing error.
+      - name: Work out the image name
+        id: image
+        run: echo "name=${REGISTRY}/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/laolearn-${{ matrix.name }}" >> "$GITHUB_OUTPUT"
+
+      - name: Derive tags and labels
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.image.outputs.name }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,format=short
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Summary
+        run: |
+          {
+            echo "### laolearn-${{ matrix.name }} published"
+            echo
+            echo '```'
+            echo "${{ steps.meta.outputs.tags }}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -9,6 +9,8 @@ interface is in Lao. See `README.md` for setup and the folder structure.
   root `docker-compose.yml` `include:`s both. They share the external network `laolearn`.
   Root `.env` configures all three; standalone runs need `--env-file ../.env`.
 - Migrations: `backend/src/db/migrations/*.sql`, applied by `npm run migrate`
+- Tests: `cd backend && npm test` (node:test, 46 tests, own `laolearn_test` db, no Docker)
+- CI: `.github/workflows/{backend,frontend}.yml` are path-filtered; `release.yml` pushes to ghcr
 
 Conventions worth keeping:
 

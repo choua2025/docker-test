@@ -146,6 +146,58 @@ npm run dev
 Vite proxies `/api` to the backend, so the browser only ever talks to one
 origin and there is no CORS to configure.
 
+## Tests and CI
+
+```bash
+cd backend && npm test        # 46 tests, no Docker needed
+```
+
+The suite uses Node's built-in test runner, so there is no extra dependency to
+install. It talks to the API over HTTP rather than calling services directly,
+which means it exercises the routes, the role guards and the exact JSON the
+browser receives — the layers where the interesting mistakes live.
+
+It uses its own `laolearn_test` database, created on first run, so it never
+touches the data you are looking at. Point it elsewhere with `DATABASE_URL`:
+
+```bash
+DATABASE_URL=postgres://postgres:secret@localhost:5432/laolearn_test npm test
+```
+
+What it covers: registration and login (including that a wrong password and an
+unknown email answer identically), token handling, lesson ownership, the
+subject-delete guard, admin self-lockout guards, and that a student's scores
+cannot be read for anyone else.
+
+### Workflows
+
+Three of them, all running on GitHub's machines so nothing has to be running
+on yours.
+
+| Workflow | Runs when | Does |
+| --- | --- | --- |
+| `backend.yml` | `backend/**` changes | migrates a throwaway PostgreSQL service, checks the migrations are repeatable, runs the tests, builds the image without pushing |
+| `frontend.yml` | `frontend/**` changes | builds the site, checks the Lao fonts and `lang="lo"` survived, enforces a 400 KB JS budget, uploads `dist/` |
+| `release.yml` | push to `main`, or a `v*` tag | pushes both images to `ghcr.io` |
+
+The path filters matter: a frontend-only commit does not run the backend job,
+and vice versa.
+
+Only `release.yml` pushes anything, and it never runs on a pull request, so a
+fork's branch cannot publish an image.
+
+### Deploying without Docker on your machine
+
+GitHub builds the images, so a server only has to pull them:
+
+```
+ghcr.io/<owner>/laolearn-backend:latest
+ghcr.io/<owner>/laolearn-frontend:latest
+```
+
+Tags are also published per commit (`sha-abc1234`) and per version tag
+(`v1.2.3` → `1.2.3` and `1.2`), so a bad release can be rolled back by name.
+
 ## Auth API
 
 | Method | Path                        | Who        | Purpose                                    |

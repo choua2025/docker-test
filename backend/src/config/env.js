@@ -24,6 +24,17 @@ const schema = z.object({
 
   CORS_ORIGIN: z.string().default("http://localhost:5173"),
 
+  // Rate limits, per IP.
+  //
+  // A whole classroom usually shares one school NAT gateway, so every student
+  // looks like the same IP. Limits low enough to stop password guessing from
+  // one laptop would lock out a class of forty, so these are deliberately
+  // generous and configurable per deployment.
+  RATE_LIMIT_LOGIN_MAX: z.coerce.number().int().min(1).default(100),
+  RATE_LIMIT_LOGIN_WINDOW_MIN: z.coerce.number().int().min(1).default(15),
+  RATE_LIMIT_REGISTER_MAX: z.coerce.number().int().min(1).default(60),
+  RATE_LIMIT_REGISTER_WINDOW_MIN: z.coerce.number().int().min(1).default(60),
+
   ADMIN_NAME: z.string().default("Administrator"),
   ADMIN_EMAIL: z.string().email().default("admin@laolearn.la"),
   ADMIN_PASSWORD: z.string().default(""),

@@ -6,7 +6,8 @@
  * Each file runs inside its own transaction, so a broken migration leaves
  * the database untouched rather than half-updated.
  *
- * Run it with:  npm run migrate
+ * Run it from the command line with:  npm run migrate
+ * Tests import `migrate()` directly to prepare a fresh test database.
  */
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
@@ -16,7 +17,11 @@ import { pool, closePool, waitForDatabase } from "../config/db.js";
 
 const migrationsDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "migrations");
 
-async function migrate() {
+/**
+ * @param {{ log?: (message: string) => void }} [options] pass `log: () => {}`
+ *   to run quietly, which is what the test setup does.
+ */
+export async function migrate({ log = console.log } = {}) {
   await waitForDatabase();
 
   const client = await pool.connect();
@@ -34,13 +39,13 @@ async function migrate() {
     const files = (await readdir(migrationsDir)).filter((f) => f.endsWith(".sql")).sort();
 
     if (files.length === 0) {
-      console.log("[migrate] no migration files found");
+      log("[migrate] no migration files found");
       return;
     }
 
     for (const file of files) {
       if (alreadyApplied.has(file)) {
-        console.log(`[migrate] skip    ${file}`);
+        log(`[migrate] skip    ${file}`);
         continue;
       }
 
@@ -51,7 +56,7 @@ async function migrate() {
         await client.query(sql);
         await client.query("INSERT INTO schema_migrations (name) VALUES ($1)", [file]);
         await client.query("COMMIT");
-        console.log(`[migrate] applied ${file}`);
+        log(`[migrate] applied ${file}`);
       } catch (err) {
         await client.query("ROLLBACK");
         console.error(`[migrate] FAILED  ${file}: ${err.message}`);
@@ -59,16 +64,24 @@ async function migrate() {
       }
     }
 
-    console.log("[migrate] done");
+    log("[migrate] done");
   } finally {
     client.release();
   }
 }
 
-try {
-  await migrate();
-  await closePool();
-} catch {
-  await closePool();
-  process.exit(1);
+/**
+ * Only run and exit when invoked as a script. Importing this file (as the
+ * tests do) must not shut the pool down underneath the caller.
+ */
+const isCli = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (isCli) {
+  try {
+    await migrate();
+    await closePool();
+  } catch {
+    await closePool();
+    process.exit(1);
+  }
 }
