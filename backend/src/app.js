@@ -54,7 +54,7 @@ export function createApp() {
   // swallow the whole API. `get` matches the exact path and method only.
   app.get("/", (req, res) => {
     res.json({
-      message: "ຍິນດີຕ້ອນຮັບເຂົ້າໃນ LaoLearn API ສໍາລັບແຂວງໄຊ",
+      message: "ຍິນດີຕ້ອນຮັບເຂົ້າໃນ LaoLearn API ສໍາລັບແຂວງໄຊສົມບູນ",
       version: PACKAGE_VERSION,
       env: env.NODE_ENV,
     });
