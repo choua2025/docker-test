@@ -39,6 +39,14 @@ export function createApp() {
 
   app.use(morgan(env.isProduction ? "combined" : "dev"));
 
+  app.use("/", (req, res) => {
+    res.json({
+      message: "ຍິນດີຕ້ອນຮັບເຂົ້າໃນ LaoLearn API ສໍາລັບແຂວງໄຊ",
+      version: env.npm_package_version,
+      env: env.NODE_ENV,
+    });
+  });
+
   app.use("/api", routes);
 
   // Order matters: 404 first, then the error formatter, both last.
